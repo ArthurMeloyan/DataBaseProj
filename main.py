@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 from database import Base, engine, SessionLocal
 from models import SportType, Athlete, Result, JsonData
 from pydantic import BaseModel, condecimal
 from datetime import date
-from sqlalchemy import func, String
+from sqlalchemy import func, String, cast, VARCHAR, or_
 
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
@@ -100,13 +101,6 @@ def create_json_data(json_data: JsonDataCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_json_data)
     return db_json_data
-
-
-# Endpoint for full-text search in JsonData
-@app.get("/json_data/full-text-search/{query}")
-def search_json_data(query: str, db: Session = Depends(get_db)):
-    results = db.query(JsonData).filter(func.json_field.op("->>").cast(String).ilike(f"%{query}%")).all()
-    return results
 
 
 # Endpoint for regular-expression search
