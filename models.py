@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Date, Numeric
 from sqlalchemy.orm import relationship
 from database import Base, engine
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class SportType(Base):
@@ -49,6 +50,12 @@ class Athlete(Base):
 
     # One-to-Many with results
     results = relationship('Result', back_populates='athlete')
+
+
+class JsonData(Base):
+    __tablename__ = 'json_data'
+    id = Column(Integer, primary_key=True)
+    json_field = Column(JSONB)
 
 
 Base.metadata.create_all(engine)
