@@ -1,10 +1,17 @@
 import requests
 import random
 from faker import Faker
+from models import JsonData
+from database import Base, engine
+from sqlalchemy.orm import sessionmaker
 
-fake = Faker()
 
 BASE_URL = 'http://127.0.0.1:8000'
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+session = Session()
+fake = Faker()
+
 
 # List of measurements unit for random choice
 unit_of_measurements = ["kg", "m", "cm", "g", "L", "km", "lb", "oz", "mm", "mL"]
@@ -105,6 +112,21 @@ def create_athlete():
     return response.json()
 
 
+# Function to populate JsonData
+def create_json_data():
+    url = f"{BASE_URL}/json_data/"
+    data = {
+        "json_field": {
+            "name": fake.name(),
+            "age": random.randint(16, 87),
+            "city": fake.city(),
+            "hobbies": fake.sentence(nb_words=1)
+        }
+    }
+    response = requests.post(url, json=data)
+    return response.json()
+
+
 # Populate Data Base with N sport types
 for _ in range(10):
     create_sport_type()
@@ -116,6 +138,11 @@ for _ in range(10):
 # Populate Data Base with N results
 for _ in range(10):
     create_result()
+
+for _ in range(10):
+    create_json_data()
+
+session.commit()
 
 print("Data Base population completed")  # Message to know that populating DB completed successfully
 
