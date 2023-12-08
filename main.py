@@ -1,10 +1,10 @@
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 from database import Base, engine, SessionLocal
-from models import SportType, Athlete, Result
+from models import SportType, Athlete, Result, JsonData
 from pydantic import BaseModel, condecimal
 from datetime import date
-from decimal import Decimal
+from sqlalchemy import func, String
 
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
@@ -79,6 +79,46 @@ class AthleteResponse(BaseModel):
 
 class AthleteDelete(BaseModel):
     message: str
+
+
+# Pydantic models for JsonData
+class JsonDataCreate(BaseModel):
+    json_field: dict
+
+
+class JsonDataResponse(BaseModel):
+    id: int
+    json_field: dict
+
+
+# REST API for JsonData model
+# For adding new data in JsonData model
+@app.post("/json_data/", response_model=JsonDataResponse)
+def create_json_data(json_data: JsonDataCreate, db: Session = Depends(get_db)):
+    db_json_data = JsonData(**json_data.dict())
+    db.add(db_json_data)
+    db.commit()
+    db.refresh(db_json_data)
+    return db_json_data
+
+
+# Endpoint for full-text search in JsonData
+@app.get("/json_data/full-text-search/{query}")
+def search_json_data(query: str, db: Session = Depends(get_db)):
+    results = db.query(JsonData).filter(func.json_field.op("->>").cast(String).ilike(f"%{query}%")).all()
+    return results
+
+
+# Endpoint for regular-expression search
+@app.get("/json_data/regular-expression-search/{expression}")
+def search(expression: str, db: Session = Depends(get_db)):
+    # Using to_tsvector function to cast json_field into text format
+    query = f"SELECT * FROM json_data WHERE to_tsvector('simple', json_field::text) @@ to_tsquery('simple', :expression)"
+    result = db.execute(query, {"expression": expression})
+    data = result.fetchall()
+    if not data:
+        raise HTTPException(status_code=404, detail="No matches found")
+    return data
 
 
 # Basic CRUD using FastAPI
