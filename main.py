@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 from database import Base, engine, SessionLocal
 from models import SportType, Athlete, Result
-from pydantic import BaseModel
+from pydantic import BaseModel, condecimal
 from datetime import date
 from decimal import Decimal
 
@@ -23,25 +23,28 @@ def get_db():
 class SportTypeCreate(BaseModel):
     unit_of_measurement: str
     name: str
-    world_record: Decimal
-    olympic_record: Decimal
+    world_record: condecimal(max_digits=10, decimal_places=2)
+    olympic_record: condecimal(max_digits=10, decimal_places=2)
 
 
 class SportTypeResponse(BaseModel):
     id: int
     unit_of_measurement: str
     name: str
-    world_record: Decimal
-    olympic_record: Decimal
+    world_record: condecimal(max_digits=10, decimal_places=2)
+    olympic_record: condecimal(max_digits=10, decimal_places=2)
+
+
+class SportTypeDelete(BaseModel):
+    message: str
 
 
 # Pydantic model for Result
 class ResultCreate(BaseModel):
-    id: int
     competition_name: str
     performance: int
     place: int
-    date_: date
+    date: date
     venue: str
 
 
@@ -50,8 +53,12 @@ class ResultResponse(BaseModel):
     competition_name: str
     performance: int
     place: int
-    date_: date
+    date: date
     venue: str
+
+
+class ResultDelete(BaseModel):
+    message: str
 
 
 # Pydantic model for Athlete
@@ -68,6 +75,10 @@ class AthleteResponse(BaseModel):
     full_name: str
     birth_year: int
     country: str
+
+
+class AthleteDelete(BaseModel):
+    message: str
 
 
 # Basic CRUD using FastAPI
@@ -119,7 +130,7 @@ def get_athlete(athlete_id: int, db: Session = Depends(get_db)):
 
 @app.get("/results/{result_id}", response_model=ResultResponse)
 def get_result(result_id: int, db: Session = Depends(get_db)):
-    results = db.query(Result).filter(Result.id == id).first()
+    results = db.query(Result).filter(Result.id == result_id).first()
     if results is None:
         raise HTTPException(status_code=404, detail='Result not found')
     return results
@@ -169,7 +180,7 @@ def update_athlete(athlete_id: int, updated: AthleteCreate, db: Session = Depend
 
 
 # Delete
-@app.delete("/sport_types/{sport_id}", response_model=SportTypeResponse)
+@app.delete("/sport_types/{sport_id}", response_model=SportTypeDelete)
 def delete_sport(sport_type_id: int, db: Session = Depends(get_db)):
     sport_type = db.query(SportType).filter(SportType.id == sport_type_id).first()
     if sport_type is None:
@@ -180,7 +191,7 @@ def delete_sport(sport_type_id: int, db: Session = Depends(get_db)):
     return {"message": "SportType deleted"}
 
 
-@app.delete("/results/{result_id}", response_model=ResultResponse)
+@app.delete("/results/{result_id}", response_model=ResultDelete)
 def delete_result(result_id: int, db: Session = Depends(get_db)):
     result = db.query(Result).filter(Result.id == result_id).first()
     if result is None:
@@ -191,10 +202,10 @@ def delete_result(result_id: int, db: Session = Depends(get_db)):
     return {"message": "Result deleted"}
 
 
-@app.delete("/athletes/{athlete_id}", response_model=AthleteResponse)
+@app.delete("/athletes/{athlete_id}", response_model=AthleteDelete)
 def delete_athlete(athlete_id: int, db: Session = Depends(get_db)):
     athlete = db.query(Athlete).filter(Athlete.id == athlete_id).first()
-    if athlete in None:
+    if athlete is None:
         raise HTTPException(status_code=404, detail="Athlete not found")
 
     db.delete(athlete)
