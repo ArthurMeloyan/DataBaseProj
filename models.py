@@ -1,7 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Numeric
 from sqlalchemy.orm import relationship
 from database import Base, engine
-from sqlalchemy.dialects.postgresql import JSONB
 
 
 class SportType(Base):
@@ -11,8 +10,8 @@ class SportType(Base):
     id = Column(Integer, primary_key=True)
     unit_of_measurement = Column(String(20), nullable=False)
     name = Column(String(50), nullable=False)
-    world_record = Column(Integer)
-    olympic_record = Column(Integer)
+    world_record = Column(Numeric(precision=10, scale=2))
+    olympic_record = Column(Numeric(precision=10, scale=2))
 
     # One-to-Many relation with results
     results = relationship('Result', back_populates='sport_type')
