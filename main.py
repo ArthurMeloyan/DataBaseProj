@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.orm import Session, joinedload
 from database import Base, engine, SessionLocal
 from models import SportType, Athlete, Result, JsonData
 from pydantic import BaseModel, condecimal
 from datetime import date
-from sqlalchemy import func, String, cast, VARCHAR, or_
+from typing import List
+from sqlalchemy import func
+from sqlalchemy import update
 
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
@@ -245,3 +246,78 @@ def delete_athlete(athlete_id: int, db: Session = Depends(get_db)):
     db.delete(athlete)
     db.commit()
     return {"message": "Athlete deleted"}
+
+
+# Read with pagination
+@app.get("/sport_types/", response_model=List[SportTypeResponse])
+def get_sport_types(page: int = 0, per_page: int = 10, db: Session = Depends(get_db)):
+    sport_types = db.query(SportType).offset(page).limit(per_page).all()
+    return sport_types
+
+
+@app.get("/results/", response_model=List[ResultResponse])
+def get_results(page: int = 0, per_page: int = 10, db: Session = Depends(get_db)):
+    results = db.query(Result).offset(page).limit(per_page).all()
+    return results
+
+
+@app.get("/athletes/", response_model=List[AthleteResponse])
+def get_athletes_sorted(page: int = 0, per_page: int = 10, sort_by: str = "id", db: Session = Depends(get_db)):
+    athletes = db.query(Athlete).order_by(getattr(Athlete, sort_by)).offset(page).limit(per_page).all()
+    return athletes
+
+
+# SELECT ... WHERE
+@app.get("/athletes/search/", response_model=List[AthleteResponse])
+def search_athletes(country: str, birth_year: int, db: Session = Depends(get_db)):
+    athletes = db.query(Athlete).filter(Athlete.country == country, Athlete.birth_year == birth_year).all()
+    if not athletes:
+        raise HTTPException(status_code=404, detail="No matches found")
+    return athletes
+
+
+# JOIN
+@app.get("/results-with-athletes/", response_model=List[dict])
+def get_results_with_athletes(db: Session = Depends(get_db)):
+    results = db.query(Result).options(joinedload(Result.athlete)).all()
+    result_data = []
+    for result in results:
+        if result.athlete is not None:
+            result_data.append({
+                "id": result.id,
+                "competition_name": result.competition_name,
+                "performance": result.performance,
+                "place": result.place,
+                "date": result.date,
+                "venue": result.venue,
+                "athlete": {
+                    "id": result.athlete.id,
+                    "win": result.athlete.win,
+                    "full_name": result.athlete.full_name,
+                    "birth_year": result.athlete.birth_year,
+                    "country": result.athlete.country,
+                }
+            })
+    return result_data
+
+
+# UPDATE
+@app.put("/results/update_by_conditions/{competition_name}/{place}", response_model=ResultResponse)
+def update_result_by_conditions(competition_name: str, place: int, updated: ResultCreate, db: Session = Depends(get_db)):
+    result = db.query(Result).filter(Result.competition_name == competition_name, Result.place == place).first()
+    if result is None:
+        raise HTTPException(status_code=404, detail='Result not found')
+
+    for key, value in updated.dict().items():
+        setattr(result, key, value)
+
+    db.commit()
+    db.refresh(result)
+    return result
+
+
+# GROUP BY
+@app.get("/athletes-by-country", response_model=dict)
+def get_athletes_by_country(db: Session = Depends(get_db)):
+    result = db.query(Athlete.country, func.count(Athlete.id).label('athlete_count')).group_by(Athlete.country).all()
+    return {row[0]: row[1] for row in result}
